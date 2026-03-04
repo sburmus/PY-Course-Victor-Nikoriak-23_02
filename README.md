@@ -174,6 +174,7 @@ upstream → repo викладача
 
 ---
 
+
 # 🔄 Перед кожним заняттям
 
 Оновлення матеріалів:
@@ -183,7 +184,43 @@ git checkout main
 git pull upstream main
 git push origin main
 ```
+___
+# 🚀 Quick Start (Виконання завдань та тестів)
 
+---
+
+## 🪟 Windows (найпростіший спосіб)
+
+1️⃣ Відкрийте папку проєкту  
+2️⃣ Двічі натисніть:
+
+- install_course.bat (перший запуск)
+- start_course.bat (кожен раз для запуску)
+
+Після запуску з’явиться меню:
+
+----------------------------------------
+Python Course -- Select Lesson
+----------------------------------------
+
+Введіть номер уроку → натисніть Enter → відкриється браузер.
+
+---
+
+## 🍎 macOS / 🐧 Linux
+
+Відкрийте Terminal у папці проєкту та виконайте:
+
+python3 install_course.py
+python3 start_course.py
+
+Після цього оберіть номер уроку.
+
+---
+
+📖 Детальна інструкція з поясненням режимів роботи:
+
+👉 Відкрийте файл **SETUP.md**
 ---
 
 # 📚 Домашнє завдання
@@ -581,3 +618,19 @@ ___
 Тепер ваше середовище повністю налаштоване і готове до роботи з курсом.
 
 ---
+
+
+## Instructor
+
+Viktor Nikoriak
+
+Hydrologist and Python developer working at the intersection
+of hydrology, geospatial analysis and data science.
+
+More information:
+
+- [Instructor profile](docs/instructor.md)
+
+## Certificates
+
+- [Certificates](docs/certificates/beetroot_python_2021.md)

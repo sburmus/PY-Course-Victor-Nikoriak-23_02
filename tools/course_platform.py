@@ -17,8 +17,5 @@ def submit_result(name, lesson, task, result):
         FIELDS["result"]: result,
     }
 
-    response = requests.post(FORM_URL, data=payload)
-
-    if response.status_code == 200:
-        return True
-    return False
+    response = requests.post(FORM_URL, data=payload, timeout=10)
+    return response.status_code == 200

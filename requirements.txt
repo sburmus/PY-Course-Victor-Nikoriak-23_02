@@ -7,3 +7,9 @@ matplotlib
 seaborn
 scikit-learn
 requests
+PyQt6
+streamlit
+sympy
+dash
+dash-bootstrap-components>=1.6.0
+black
