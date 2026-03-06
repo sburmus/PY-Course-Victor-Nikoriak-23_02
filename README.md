@@ -123,7 +123,94 @@ git config --global user.email "your_email@example.com"
 
 ---
 
-## 1️⃣ Fork репозиторію
+# 1️⃣ Створіть Fork репозиторію
+
+Перейдіть у репозиторій курсу:
+
+```
+https://github.com/NikoriakViktot/PY-Course-Victor-Nikoriak-23_02
+```
+
+Натисніть кнопку:
+
+```
+Fork
+```
+
+---
+
+## У вікні **Create a new fork**
+
+Вам потрібно:
+
+**Owner**
+
+```
+ваш GitHub акаунт
+```
+
+**Repository name**
+
+```
+PY-Course-Victor-Nikoriak-23_02
+```
+
+⚠️ **Назву змінювати НЕ потрібно.**
+
+---
+
+### Обовʼязково перевірте
+
+✅ **Copy the main branch only** — увімкнено
+
+---
+
+Після цього натисніть:
+
+```
+Create fork
+```
+
+---
+
+## Що відбудеться
+
+GitHub створить **копію репозиторію у вашому акаунті**.
+
+Вона буде виглядати так:
+
+```
+https://github.com/<your-username>/PY-Course-Victor-Nikoriak-23_02
+```
+
+Приклад:
+
+```
+https://github.com/student123/PY-Course-Victor-Nikoriak-23_02
+```
+
+---
+
+## Важливо
+
+Ви **працюєте тільки у своєму fork**.
+
+```
+NikoriakViktot/PY-Course-Victor-Nikoriak-23_02  → repo викладача
+your-username/PY-Course-Victor-Nikoriak-23_02 → ваш fork
+```
+
+---
+
+# 2️⃣ Clone у PyCharm
+
+PyCharm →
+
+```
+File → New Project from Version Control
+```
+
+Вставте **URL вашого fork**.
 
 На GitHub натисніть:
 
@@ -139,17 +226,6 @@ github.com/<your-username>/PY_Course_Victor-Nikoriak-23_02
 
 ---
 
-## 2️⃣ Clone у PyCharm
-
-PyCharm →
-
-```
-File → New Project from Version Control
-```
-
-Вставте URL **вашого fork**.
-
----
 
 ## 3️⃣ Додати upstream (ОДИН РАЗ)
 
