@@ -2,18 +2,16 @@ def ask_name():
     user_name = input("Як ваше ім'я? ")
     return user_name
 
-print(f"Hello, {ask_name()}!")
+def total_price():
+    user_amount = float(input("Яка сума покупки (€)? "))
+    return user_amount
 
-def import_tax(country: str, amount: float) -> float:
-    """
-    Обчислює податок на ввіз товару.
-    Якщо сума > 150 євро, податок = 20%.
-    Інакше податок = 0.
-    """
-    if amount > 150:
-        tax_rate = 0.20
-    else:
-        tax_rate = 0.0
+def main():
+    name = ask_name()
+    amount = total_price()
 
-    return amount * tax_rate
+    print(f"Hello, {name}!")
+    print(f"{name}, ваша сума покупки: {amount:.2f} €")
+
+
 
