@@ -6,3 +6,6 @@ def main():
 
 if __name__ == "__main__":
  main()
+
+print(mymod.count_lines("sample.txt"))
+print(mymod.count_chars("sample.txt"))
