@@ -303,7 +303,7 @@ graph TD
     classDef slow fill:#4a3b00,stroke:#ff9800,color:#ffffff;
     classDef very_slow fill:#4e1f1f,stroke:#f44336,color:#ffffff;
 
-    REG["CPU Registers<br/>~0.25 нс · 1x<br/>≈ 64 байти"]
+    REG["CPU Registers<br/>~0.25 нс · 1x<br/>≈ 64 біта"]
     L1["L1 Cache<br/>~1 нс · 4x<br/>32 KB"]
     L2["L2 Cache<br/>~5 нс · 20x<br/>256 KB"]
     L3["L3 Cache<br/>~20 нс · 80x<br/>8 MB"]

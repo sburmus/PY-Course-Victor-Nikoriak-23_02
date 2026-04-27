@@ -100,8 +100,8 @@ services:
     environment:
       NEO4J_AUTH: neo4j/python2024
     ports:
-      - "7474:7474"    # Neo4j Browser (веб-інтерфейс)
-      - "7687:7687"    # Bolt protocol (драйвер Python)
+      - "7473:7473"    # Neo4j Browser (веб-інтерфейс)
+      - "7688:7688"    # Bolt protocol (драйвер Python)
     volumes:
       - neo4jdata:/data
     networks:
