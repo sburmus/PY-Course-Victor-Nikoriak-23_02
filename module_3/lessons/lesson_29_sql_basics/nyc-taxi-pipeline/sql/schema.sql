@@ -83,3 +83,4 @@ ORDER BY total_trips DESC;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_top_routes_pk
     ON top_routes (pu_location_id, do_location_id);
+
