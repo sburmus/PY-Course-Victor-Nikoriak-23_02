@@ -25,3 +25,7 @@ neo4j
 networkx
 beautifulsoup4
 wordcloud
+tqdm
+nltk
+pymorphy3
+pymorphy3-dicts-uk
