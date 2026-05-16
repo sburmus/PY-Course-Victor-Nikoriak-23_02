@@ -26,6 +26,8 @@ stateDiagram-v2
     CLOSED --> [*]
 ```
 
+
+
 ---
 
 ## Діаграма 2: Event Loop — Алгоритм Планування
@@ -177,22 +179,27 @@ flowchart LR
 
 ```mermaid
 quadrantChart
-    title Вибір моделі конкурентності
-    x-axis "I/O-bound" --> "CPU-bound"
-    y-axis "Мало з'єднань" --> "Багато з'єднань"
+    title Python Concurrency Models
 
-    quadrant-1 Asyncio + run_in_executor
-    quadrant-2 Asyncio (FastAPI, WebSocket)
-    quadrant-3 Threading (legacy sync libs)
-    quadrant-4 Multiprocessing (ML, image)
+    x-axis Low IO --> Heavy CPU
+    y-axis Few Connections --> Many Connections
 
-    Asyncio: [0.2, 0.85]
-    FastAPI_ASGI: [0.15, 0.9]
-    WebSocket_Server: [0.1, 0.95]
-    ThreadPool_IO: [0.25, 0.45]
-    ProcessPool_CPU: [0.85, 0.3]
-    Celery_Workers: [0.8, 0.5]
-    run_in_executor: [0.7, 0.7]
+    quadrant-1 Hybrid Systems
+    quadrant-2 Async Networking
+    quadrant-3 Threading
+    quadrant-4 Parallel CPU
+
+    Asyncio: [0.25, 0.655]
+    FastAPI: [0.2, 0.75]
+    WebSockets: [0.15, 0.85]
+
+    ThreadPool: [0.25, 0.35]
+
+    ProcessPool: [0.8, 0.3]
+    Celery: [0.6, 0.35]
+
+    ExecutorHybrid: [0.7, 0.7]
+    
 ```
 
 ---
