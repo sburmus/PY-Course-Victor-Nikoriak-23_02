@@ -1,50 +1,52 @@
-"""
-app/handlers/echo.py — Echo handlers з production-style observability.
 
-РОЛЬ У АРХІТЕКТУРІ:
-    Цей файл — "серце" ехо-бота. Обробляє весь вхідний контент:
-        F.text    → echo_text()    — повторює текстові повідомлення
-        F.photo   → echo_photo()   — відповідає на фото
-        F.sticker → echo_sticker() — відповідає на стікери
-        (catch-all) → echo_unknown() — все інше (документи, голос тощо)
-
-OBSERVABILITY LAYER (production-style):
-    Кожен handler ДЕТАЛЬНО логує вхідне і вихідне повідомлення.
-
-    Рівні логів, які тут використовуються:
-        INFO  → нормальні події (отримали текст, надіслали відповідь)
-        DEBUG → повний JSON дамп (детальна відлагодження)
-        WARNING → неочікуваний тип контенту (catch-all спрацював)
-
-    Дві helper-функції:
-        log_message_metadata() → INFO: основні поля (user, chat, content_type)
-        log_full_message()     → DEBUG: повний JSON через model_dump()
-
-    Для перегляду DEBUG логів — у .env встановити: LOG_LEVEL=DEBUG
-    Для production (без JSON дампів): LOG_LEVEL=INFO
-
-ЯК AIOGRAM СЕРІАЛІЗУЄ MESSAGE У JSON:
-    aiogram моделі — це Pydantic моделі.
-    message.model_dump(mode="json"):
-        Конвертує Pydantic об'єкт у Python dict (JSON serializable).
-        mode="json" → всі типи конвертуються у JSON-сумісні (datetime → str тощо).
-    json.dumps(..., indent=4, ensure_ascii=False):
-        Серіалізує dict у відформатований JSON рядок для логу.
-        ensure_ascii=False → кирилиця і емоджі зберігаються як є (не \uXXXX).
-
-ROUTING PRIORITY:
-    echo.router реєструється ДРУГИМ у Dispatcher (після start.router).
-    F.text — загальний фільтр (будь-який текст).
-    Завдяки порядку, /start /help /about та кнопки вже оброблені start.router
-    і до echo.router не доходять.
-
-    Порядок handlers У САМОМУ echo.router:
-        1. F.text    → специфічний текст
-        2. F.photo   → специфічне фото
-        3. F.sticker → специфічний стікер
-        4. catch-all → все інше (без фільтрів)
-    Catch-all ОСТАННІМ — щоб не перехоплювати text/photo/sticker.
-"""
+# """
+# app/handlers/echo.py — Echo handlers з production-style observability.
+#
+# РОЛЬ У АРХІТЕКТУРІ:
+#     Цей файл — "серце" ехо-бота. Обробляє весь вхідний контент:
+#         F.text    → echo_text()    — повторює текстові повідомлення
+#         F.photo   → echo_photo()   — відповідає на фото
+#         F.sticker → echo_sticker() — відповідає на стікери
+#         (catch-all) → echo_unknown() — все інше (документи, голос тощо)
+#
+# OBSERVABILITY LAYER (production-style):
+#     Кожен handler ДЕТАЛЬНО логує вхідне і вихідне повідомлення.
+#
+#     Рівні логів, які тут використовуються:
+#         INFO  → нормальні події (отримали текст, надіслали відповідь)
+#         DEBUG → повний JSON дамп (детальна відлагодження)
+#         WARNING → неочікуваний тип контенту (catch-all спрацював)
+#
+#     Дві helper-функції:
+#         log_message_metadata() → INFO: основні поля (user, chat, content_type)
+#         log_full_message()     → DEBUG: повний JSON через model_dump()
+#
+#     Для перегляду DEBUG логів — у .env встановити: LOG_LEVEL=DEBUG
+#     Для production (без JSON дампів): LOG_LEVEL=INFO
+#
+# ЯК AIOGRAM СЕРІАЛІЗУЄ MESSAGE У JSON:
+#     aiogram моделі — це Pydantic моделі.
+#     message.model_dump(mode="json"):
+#         Конвертує Pydantic об'єкт у Python dict (JSON serializable).
+#         mode="json" → всі типи конвертуються у JSON-сумісні (datetime → str тощо).
+#     json.dumps(..., indent=4, ensure_ascii=False):
+#         Серіалізує dict у відформатований JSON рядок для логу.
+#         ensure_ascii=False → кирилиця і емоджі зберігаються як є (не \uXXXX).
+#
+# ROUTING PRIORITY:
+#     echo.router реєструється ДРУГИМ у Dispatcher (після start.router).
+#     F.text — загальний фільтр (будь-який текст).
+#     Завдяки порядку, /start /help /about та кнопки вже оброблені start.router
+#     і до echo.router не доходять.
+#
+#     Порядок handlers У САМОМУ echo.router:
+#         1. F.text    → специфічний текст
+#         2. F.photo   → специфічне фото
+#         3. F.sticker → специфічний стікер
+#         4. catch-all → все інше (без фільтрів)
+#     Catch-all ОСТАННІМ — щоб не перехоплювати text/photo/sticker.
+#
+# """
 import json
 import logging
 from pprint import pformat
@@ -85,6 +87,7 @@ def log_message_metadata(message: Message) -> None:
         Для системних повідомлень (channel post, pinned тощо) from_user = None.
         Використовуємо: message.from_user.id if message.from_user else None
         щоб не отримати AttributeError.
+
     """
     logger.info(
         "\n"
@@ -142,6 +145,7 @@ def log_full_message(message: Message) -> None:
     try/except:
         Серіалізація може впасти якщо є нестандартні поля.
         Не хочемо, щоб помилка логування вплинула на обробку повідомлення.
+
     """
     try:
         # Конвертуємо aiogram Pydantic модель у dict
