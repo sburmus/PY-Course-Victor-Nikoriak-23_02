@@ -1393,6 +1393,88 @@ Database Cost
 
 ---
 
+---
+
+### Повна конфігурація — фінальний стан файлів
+
+#### Крок 1 — Встанови пакет
+
+```bash
+pip install django-debug-toolbar
+```
+
+#### Крок 2 — `hello_project/settings.py` — три зміни
+
+```python
+INSTALLED_APPS = [
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    'hello_app',
+    "debug_toolbar",       # ← 1. ДОДАЙ
+]
+
+MIDDLEWARE = [
+    "debug_toolbar.middleware.DebugToolbarMiddleware",  # ← 2. ДОДАЙ ПЕРШИМ
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
+
+INTERNAL_IPS = [           # ← 3. ДОДАЙ НОВИЙ БЛОК (в кінці файлу)
+    "127.0.0.1",
+]
+```
+
+#### Крок 3 — `hello_project/urls.py`
+
+```python
+from django.contrib import admin
+from django.urls import path, include
+from debug_toolbar.toolbar import debug_toolbar_urls  # ← ДОДАЙ ІМПОРТ
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', include('hello_app.urls', namespace='hello_app')),
+] + debug_toolbar_urls()  # ← ДОДАЙ В КІНЦІ
+```
+
+#### Крок 4 — Запусти сервер
+
+```bash
+python manage.py runserver
+```
+
+Відкрий `http://127.0.0.1:8000/notes/` — справа з'явиться чорна панель **DJDT**.
+
+> **Важливо:** toolbar показується лише на сторінках з повним HTML
+> (тег `<body>`). Маршрути `/` і `/about/` повертають `HttpResponse("текст")` без `<body>` —
+> там toolbar НЕ з'явиться. Перевіряй на `/notes/`.
+
+---
+
+### Чеклист — чому toolbar не підключається
+
+| # | Перевірка | Що перевірити |
+|---|-----------|--------------|
+| 1 | Пакет встановлений? | `pip show django-debug-toolbar` — має показати версію |
+| 2 | `"debug_toolbar"` в `INSTALLED_APPS`? | settings.py |
+| 3 | `DebugToolbarMiddleware` в `MIDDLEWARE`? | settings.py |
+| 4 | `INTERNAL_IPS = ["127.0.0.1"]` є? | settings.py |
+| 5 | `debug_toolbar_urls()` в urls.py? | hello_project/urls.py |
+| 6 | Сторінка має `<body>` тег? | HttpResponse("текст") — не підходить, потрібен шаблон |
+| 7 | `DEBUG = True`? | settings.py — toolbar показується лише в debug режимі |
+| 8 | Windows: помилка MIME? | Додай в settings.py: `import mimetypes` + `mimetypes.add_type("application/javascript", ".js", True)` |
+
+---
+
 ### Production Warning
 
 Django Debug Toolbar — DEV TOOL.
