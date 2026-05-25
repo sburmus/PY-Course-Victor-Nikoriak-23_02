@@ -28,6 +28,7 @@
                 {{ note.content }} — текст нотатки.
                 Якщо content порожній — нічого не виведеться.
             -->
+
             {% if note.content %}
                 <p>{{ note.content }}</p>
             {% endif %}
@@ -44,6 +45,7 @@
         <!-- Показуємо якщо нотаток немає -->
         <p>Нотаток поки немає.
            <a href="/admin/hello_app/note/add/">Додати в адмін-панелі →</a>
+            <a href="https://www.w3schools.com/html/default.asp">w3 →</a>
         </p>
     {% endif %}
 

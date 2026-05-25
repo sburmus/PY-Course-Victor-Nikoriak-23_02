@@ -29,7 +29,7 @@
                 <i class="bi bi-pencil me-1"></i>Редагувати
             </a>
             <a href="{% url 'hello_app:note_delete' pk=note.pk %}"
-               class="btn btn-sm btn-outline-danger">
+               class="btn btn-sm btn btn-outline-dark">
                 <i class="bi bi-trash me-1"></i>Видалити
             </a>
         </div>
@@ -56,7 +56,7 @@
 </div>
 
 <a href="{% url 'hello_app:note_list' %}" class="btn btn-link mt-3">
-    <i class="bi bi-arrow-left me-1"></i>Назад до списку
+    <i class="btn btn-outline-dark"> Назад до списку </i>
 </a>
 
 {% endblock %}
