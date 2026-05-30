@@ -927,6 +927,11 @@ print(f"Теги: {[t.name for t in note.tags.all()]}")
 
 ## Крок 7 — Архітектура: Services & Selectors
 
+> **Детальна документація (читати окремо):**
+> - [DJANGO_SERVICES_SELECTORS.md](../DJANGO_SERVICES_SELECTORS.md) — повна архітектура: View→Service→Selector→ORM, data flow, антипатерни, таблиця відповідальностей
+> - [DJANGO_SELECTORS.md](../DJANGO_SELECTORS.md) — глибоко про Selector: CQRS-light, naming convention, QuerySet vs evaluated list, централізація N+1
+> - [DJANGO_SERVICES.md](../DJANGO_SERVICES.md) — глибоко про Service: stateless функції, `@transaction.atomic`, `on_commit()`, Celery як transport layer
+
 ---
 > **🧠 Ментальна модель:** View — це **контролер трафіку**, не виконавець. Він приймає HTTP-запит, делегує роботу і повертає відповідь. Якщо View сам виконує всі запити до БД — це "fat view" і через місяць код стає нечитабельним. Selector = читання. Service = запис/зміна.
 >

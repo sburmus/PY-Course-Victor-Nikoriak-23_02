@@ -65,6 +65,9 @@
 | [RELATIONAL_DB_FOUNDATIONS.md](RELATIONAL_DB_FOUNDATIONS.md) | 1–3 | Фундамент реляційних БД: таблиці, ключі, нормалізація, SQL, Query Execution Flow, Predicate Pushdown, JOIN алгоритми, **SQL Injection + Trust Boundary Architecture** |
 | [DJANGO_ORM_DEEP.md](DJANGO_ORM_DEEP.md) | 4–7 | Django ORM: QuerySets, Lazy Evaluation, Migrations, Field System, N+1, select_related, prefetch_related, F(), atomic() |
 | [DJANGO_FORMS.md](DJANGO_FORMS.md) | 8 | Форми: Trust Boundary, Validation Pipeline, ModelForm, Widget/Bootstrap CSS injection, CSRF, PRG патерн, Crispy Forms |
+| [DJANGO_SERVICES_SELECTORS.md](DJANGO_SERVICES_SELECTORS.md) | 9 | **Повна архітектура бізнес-шару:** View→InputSerializer→Service→Selector→ORM→OutputSerializer. Data flow, антипатерни, таблиця відповідальностей. Serializers як transport layer. |
+| [DJANGO_SELECTORS.md](DJANGO_SELECTORS.md) | 9 | **Selector — шар читання:** CQRS-light (Reads vs Writes), централізація N+1, QuerySet vs evaluated list, selector + django-filter без витоку ORM, naming convention, шаблон |
+| [DJANGO_SERVICES.md](DJANGO_SERVICES.md) | 9 | **Service — шар бізнес-логіки:** stateless функції, keyword-only args, @transaction.atomic, side effects через on_commit(), Celery task як transport layer, маппінг помилок домену → HTTP |
 | [POSTGRESQL_ADVANCED.md](POSTGRESQL_ADVANCED.md) | — | PostgreSQL архітектура (MVCC, WAL, Process Model), Docker підключення, PostgreSQL-специфічні поля, PgBouncer, production stack |
 | [INDEXING_DEEP.md](INDEXING_DEEP.md) | — | Фізика B-Tree, composite/covering/GIN/Trigram indexes, EXPLAIN ANALYZE |
 | [TRANSACTIONS_CONCURRENCY.md](TRANSACTIONS_CONCURRENCY.md) | — | Транзакції, row locking, deadlocks, race conditions, select_for_update(), on_commit() |
@@ -72,13 +75,22 @@
 
 ---
 
-## Практичний проєкт
+## Практичні проєкти
 
 | Проєкт | Папка | Що всередині |
 |--------|-------|--------------|
-| [Notes Platform](notes_project/README.md) | `notes_project/` | Платформа нотаток: 9 моделей (UserProfile, Notebook, Tag, Note, Reminder, TodoList, TodoItem, ShoppingList, ShopItem). Services/Selectors архітектура. Всі типи зв'язків. QuerySet API. SQLite→PostgreSQL міграція. |
+| [Notes Platform — FBV](notes_project/README.md) | `notes_project/` | Платформа нотаток: 9 моделей (UserProfile, Notebook, Tag, Note, Reminder, TodoList, TodoItem, ShoppingList, ShopItem). Services/Selectors архітектура. Всі типи зв'язків. QuerySet API. SQLite→PostgreSQL міграція. |
+| [Notes Platform — CBV](notes_project_cbv/README.md) | `notes_project_cbv/` | Та сама платформа, але `views.py` і `urls.py` переписані на Class-Based Views: `ListView`, `DetailView`, `CreateView`, `UpdateView`, `DeleteView`, `LoginRequiredMixin`, `UserQuerySetMixin`. |
 
-### Ключові файли проєкту
+### Рекомендований порядок проєктів
+
+```
+notes_project/     ← спочатку: FBV, ORM, Services/Selectors, PostgreSQL
+      ↓
+notes_project_cbv/ ← потім: ті самі моделі/сервіси, але views → CBV
+```
+
+### Ключові файли notes_project (FBV)
 
 | Файл | Що робить | Де в туторіалі |
 |------|-----------|----------------|
@@ -90,6 +102,16 @@
 | `hello_app/forms.py` | Форми з Trust Boundary + user-filtered QuerySets | Крок 8 README |
 | `hello_app/admin.py` | Admin з select_related, TabularInline, annotate | — |
 | `hello_app/migrations/` | Автогенерований граф міграцій | Крок 5 README |
+
+### Ключові файли notes_project_cbv (CBV)
+
+| Файл | Що змінилось |
+|------|--------------|
+| [`hello_app/views.py`](notes_project_cbv/hello_app/views.py) | ★ Переписано на CBV: `LoginRequiredMixin`, `UserQuerySetMixin`, `ListView`/`DetailView`/`CreateView`/`UpdateView`/`DeleteView` |
+| [`hello_app/urls.py`](notes_project_cbv/hello_app/urls.py) | ★ `.as_view()` у кожному `path()` замість функцій |
+| [`hello_app/views_fbv_backup.py`](notes_project_cbv/hello_app/views_fbv_backup.py) | FBV оригінал для порівняння (з CBV-еквівалентами у кожній функції) |
+| [`hello_app/forms_views_laboratory.ipynb`](notes_project_cbv/hello_app/forms_views_laboratory.ipynb) | 🔬 **Інтерактивна лабораторія** — 45 клітинок: Trust Boundary, Validation Pipeline, user= queryset, instance= edit, Widget HTML, RequestFactory, django.test.Client, reverse(), CSRF |
+| Всі інші файли | Без змін — ті самі models, forms, selectors, services, templates |
 
 ---
 
@@ -137,20 +159,26 @@
 ## Рекомендований порядок читання
 
 ```
-1. RELATIONAL_DB_FOUNDATIONS.md      ← Розумієш реляційну модель, SQL, execution flow
-2. ORM_MERMAID.md (ER-діаграми)      ← Бачиш зв'язки візуально перед кодом
-3. DJANGO_ORM_DEEP.md                ← ORM: QuerySets, lazy eval, N+1, F(), atomic()
-4. DJANGO_FORMS.md                   ← Форми: Trust Boundary, Validation Pipeline, PRG
-5. POSTGRESQL_ADVANCED.md            ← MVCC, WAL, Docker підключення, prod стек
-6. INDEXING_DEEP.md                  ← B-Tree, GIN, EXPLAIN ANALYZE
-7. TRANSACTIONS_CONCURRENCY.md       ← Deadlocks, race conditions, select_for_update()
-8. ORM_MERMAID.md (всі схеми)        ← Закріплюєш всю архітектуру
-9. notes_project/README.md           ← Покроковий туторіал: проєктування → PostgreSQL
-10. notes_project/hello_app/models.py    ← Читай як навчальний матеріал з коментарями
-11. notes_project/hello_app/selectors.py ← SELECT шар: N+1 рішення, Prefetch, annotate
-12. notes_project/hello_app/services.py  ← Бізнес-логіка: atomic(), F(), select_for_update()
-13. notes_project/hello_app/forms.py     ← Trust Boundary у практиці: user-filtered FK/M:N
-14. notes_project/hello_app/orm_laboratory.ipynb ← 🔬 Інтерактивна лабораторія: виконай кожну клітинку і подивись SQL
+ 1. RELATIONAL_DB_FOUNDATIONS.md      ← Розумієш реляційну модель, SQL, execution flow
+ 2. ORM_MERMAID.md (ER-діаграми)      ← Бачиш зв'язки візуально перед кодом
+ 3. DJANGO_ORM_DEEP.md                ← ORM: QuerySets, lazy eval, N+1, F(), atomic()
+ 4. DJANGO_FORMS.md                   ← Форми: Trust Boundary, Validation Pipeline, PRG
+ 5. POSTGRESQL_ADVANCED.md            ← MVCC, WAL, Docker підключення, prod стек
+ 6. INDEXING_DEEP.md                  ← B-Tree, GIN, EXPLAIN ANALYZE
+ 7. TRANSACTIONS_CONCURRENCY.md       ← Deadlocks, race conditions, select_for_update()
+ 8. ORM_MERMAID.md (всі схеми)        ← Закріплюєш всю архітектуру
+ 9. DJANGO_SERVICES_SELECTORS.md      ← Повна архітектура: View→Service→Selector→ORM, data flow, антипатерни
+10. DJANGO_SELECTORS.md               ← Глибоко: CQRS-light, N+1 в одному місці, naming convention
+11. DJANGO_SERVICES.md                ← Глибоко: stateless, atomic, on_commit, Celery як transport
+12. notes_project/README.md           ← Покроковий туторіал: проєктування → PostgreSQL
+13. notes_project/hello_app/models.py    ← Читай як навчальний матеріал з коментарями
+14. notes_project/hello_app/selectors.py ← SELECT шар: N+1 рішення, Prefetch, annotate
+15. notes_project/hello_app/services.py  ← Бізнес-логіка: atomic(), F(), select_for_update()
+16. notes_project/hello_app/forms.py     ← Trust Boundary у практиці: user-filtered FK/M:N
+17. notes_project/hello_app/orm_laboratory.ipynb ← Інтерактивна лабораторія: виконай кожну клітинку і подивись SQL
+18. notes_project_cbv/README.md          ← CBV туторіал: as_view(), dispatch(), Generic Views, Mixins
+19. notes_project_cbv/hello_app/views.py ← CBV код: порівняй кожен клас з FBV оригіналом
+20. notes_project_cbv/hello_app/forms_views_laboratory.ipynb ← Forms & Views лабораторія: Trust Boundary, RequestFactory, Client
 ```
 
 > Після цього шляху ти розумієш не просто "як писати QuerySet",
