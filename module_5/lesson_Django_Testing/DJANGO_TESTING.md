@@ -88,12 +88,21 @@ graph TD
 Django розширює Python `unittest` для веб-специфічних сценаріїв.
 
 ```mermaid
-graph TD
-    A["Python unittest.TestCase"] --> B["SimpleTestCase\nБез БД"]
-    B --> C["TransactionTestCase\nОчищає таблиці між тестами"]
-    C --> D["TestCase\nRollback транзакції між тестами"]
-    C --> E["LiveServerTestCase\nЗапускає фоновий HTTP-сервер"]
-    E --> F["StaticLiveServerTestCase\nLiveServer + CSS/JS файли"]
+flowchart TD
+
+    Q{"Що тестуємо?"}
+
+    Q -->|"Чиста Python логіка"| S["SimpleTestCase"]
+
+    Q -->|"ORM / Моделі"| T["TestCase"]
+
+    Q -->|"Перевірка транзакцій"| TT["TransactionTestCase"]
+
+    Q -->|"Selenium / Browser"| LS["LiveServerTestCase"]
+
+    Q -->|"Selenium + CSS/JS"| SLS["StaticLiveServerTestCase"]
+
+    style Q fill:#8B5E3C,color:#fff
 ```
 
 | Клас | База даних | Для чого |

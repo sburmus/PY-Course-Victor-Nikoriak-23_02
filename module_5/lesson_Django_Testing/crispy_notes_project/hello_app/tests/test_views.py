@@ -1,6 +1,32 @@
 """
 test_views.py — Інтеграційні тести через Django Test Client
 
+ЯК ЗАПУСТИТИ:
+  # Перейти до папки проєкту (якщо ще не там)
+  cd module_5/lesson_Django_Testing/crispy_notes_project
+
+  # Всі тести цього файлу (41 тест)
+  python manage.py test hello_app.tests.test_views -v 2
+
+  # Конкретний клас
+  python manage.py test hello_app.tests.test_views.NoteListViewTest -v 2
+  python manage.py test hello_app.tests.test_views.NoteDetailViewTest -v 2
+  python manage.py test hello_app.tests.test_views.NoteCreateViewTest -v 2
+  python manage.py test hello_app.tests.test_views.NoteEditViewTest -v 2
+  python manage.py test hello_app.tests.test_views.NoteDeleteViewTest -v 2
+  python manage.py test hello_app.tests.test_views.NotebookViewTest -v 2
+  python manage.py test hello_app.tests.test_views.GroupViewTest -v 2
+  python manage.py test hello_app.tests.test_views.TodoListSharingViewTest -v 2
+
+  # Конкретний тест
+  python manage.py test hello_app.tests.test_views.NoteDetailViewTest.test_group_member_can_view_note -v 2
+
+  # Зупинитись на першому провалі
+  python manage.py test hello_app.tests.test_views --failfast -v 2
+
+  # Всі тести проєкту разом
+  python manage.py test hello_app.tests -v 1
+
 ВІДМІННІСТЬ ВІД UNIT ТЕСТІВ:
   Unit тести (test_services.py):
     services.create_note(user=alice, title='Test')   ← прямий виклик Python
@@ -118,7 +144,7 @@ class AuthenticationViewTest(BaseViewTest):
         self._assert_login_required(reverse('hello_app:group_list'))
 
     def test_todo_list_redirects_anonymous(self):
-        """Захист todo списків."""
+        """Захист to do списків."""
         self._assert_login_required(reverse('hello_app:todo_list'))
 
 

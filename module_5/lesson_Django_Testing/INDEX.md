@@ -203,6 +203,8 @@ def create_note_for_user(user, title, content):
 | [TEST_DATA_AND_FIXTURES.md](TEST_DATA_AND_FIXTURES.md) | 3 | Test data, `setUp`, `setUpTestData`, factories | Прибрати дублювання тестових даних |
 | [MOCKING_AND_PATCHING.md](MOCKING_AND_PATCHING.md) | 4 | `mock`, `patch`, email/API/payment | Замокати email-сервіс |
 | [TESTING_PRACTICE_PROJECT.md](TESTING_PRACTICE_PROJECT.md) | 4 | Повний notes-проєкт, Selenium, Docker, coverage | Зібрати повний набір тестів |
+| [SELENIUM.md](SELENIUM.md) | 3 | WebDriver, By стратегії, waits, StaticLiveServerTestCase, session cookie trick | Запустити перший Selenium скрипт |
+| [CI_CD.md](CI_CD.md) | 4 | CI/CD, GitHub Actions, `django-tests.yml` рядок за рядком | Переглянути workflow run у GitHub Actions |
 
 ---
 
@@ -218,6 +220,7 @@ flowchart TD
     F --> G["7. Замокати email/API"]
     G --> H["8. Додати Selenium smoke test"]
     H --> I["9. Перевірити coverage"]
+    I --> J["10. Автоматизувати через CI/CD\n(GitHub Actions)"]
 ```
 
 ---
@@ -230,13 +233,16 @@ flowchart TD
 2. [PYTEST_BASICS.md](PYTEST_BASICS.md) до першого fixture.
 3. [DJANGO_TESTING.md](DJANGO_TESTING.md) до тестів model/form/view.
 4. [TESTING_PRACTICE_PROJECT.md](TESTING_PRACTICE_PROJECT.md) розділи 1-5.
+5. [SELENIUM.md](SELENIUM.md) до розділу про session cookie trick.
 
 Повний маршрут:
 
 1. усі файли по порядку;
 2. кожен приклад переписати вручну;
 3. кожен тест один раз спеціально зламати;
-4. у фіналі додати тести у власний Django-проєкт.
+4. [SELENIUM.md](SELENIUM.md) — розібрати WebDriver, By стратегії, waits, session cookie trick;
+5. у фіналі додати тести у власний Django-проєкт;
+6. [CI_CD.md](CI_CD.md) — автоматизувати запуск тестів через GitHub Actions.
 
 ---
 
