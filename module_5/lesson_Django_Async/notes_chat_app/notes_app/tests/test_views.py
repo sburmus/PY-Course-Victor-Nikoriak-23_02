@@ -55,7 +55,7 @@ from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
 
-from notes_app.models import Note, Notebook, TodoList
+from notes_app.models import Note, Notebook, Tag, TodoList, TodoItem, ShoppingList, ShopItem
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -707,3 +707,370 @@ class TodoListSharingViewTest(BaseViewTest):
         self.assertEqual(response.status_code, 200)
         # error переданий у контекст шаблону
         self.assertIsNotNone(response.context.get('error'))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 10. INDEX + REGISTER VIEWS
+# ─────────────────────────────────────────────────────────────────────────────
+
+class IndexAndRegisterViewTest(BaseViewTest):
+    def test_index_redirects_authenticated_user(self):
+        """Залогінений юзер на / → redirect до note_list."""
+        self.client.force_login(self.alice)
+        response = self.client.get(reverse('notes_app:index'))
+        self.assertRedirects(response, reverse('notes_app:note_list'),
+                             fetch_redirect_response=False)
+
+    def test_index_shows_page_for_anonymous(self):
+        """Анонімний юзер на / → 200 (landing page)."""
+        response = self.client.get(reverse('notes_app:index'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_register_get_returns_200(self):
+        response = self.client.get(reverse('notes_app:register'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('form', response.context)
+
+    def test_valid_registration_creates_user_and_redirects(self):
+        response = self.client.post(reverse('notes_app:register'), {
+            'username': 'newuser',
+            'password1': 'StrongPass123!',
+            'password2': 'StrongPass123!',
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(User.objects.filter(username='newuser').exists())
+
+    def test_register_redirects_authenticated_user(self):
+        """Вже залогінений юзер іде на /register/ → redirect до note_list."""
+        self.client.force_login(self.alice)
+        response = self.client.get(reverse('notes_app:register'))
+        self.assertRedirects(response, reverse('notes_app:note_list'),
+                             fetch_redirect_response=False)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 11. NOTE LIST FILTERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+class NoteListFilterViewTest(BaseViewTest):
+    def setUp(self):
+        super().setUp()
+        self.tag = Tag.objects.create(user=self.alice, name='work')
+        self.alice_note.tags.add(self.tag)
+
+    def test_filter_by_tag_shows_tagged_note(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(
+            reverse('notes_app:note_list') + f'?tag={self.tag.pk}'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Alice Note')
+
+    def test_filter_by_notebook_shows_note(self):
+        self.alice_note.notebook = self.alice_notebook
+        self.alice_note.save()
+        self.client.force_login(self.alice)
+        response = self.client.get(
+            reverse('notes_app:note_list') + f'?notebook={self.alice_notebook.pk}'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Alice Note')
+
+    def test_invalid_tag_id_does_not_crash(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(reverse('notes_app:note_list') + '?tag=99999')
+        self.assertEqual(response.status_code, 200)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 12. NOTEBOOK CRUD VIEWS
+# ─────────────────────────────────────────────────────────────────────────────
+
+class NotebookCRUDViewTest(BaseViewTest):
+    def test_notebook_create_get_returns_200(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(reverse('notes_app:notebook_create'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_notebook_create_valid_post(self):
+        self.client.force_login(self.alice)
+        response = self.client.post(reverse('notes_app:notebook_create'), {
+            'title': 'Science', 'color': '#FF0000', 'is_default': False,
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Notebook.objects.filter(title='Science', user=self.alice).exists())
+
+    def test_notebook_edit_get_returns_200(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(
+            reverse('notes_app:notebook_edit', args=[self.alice_notebook.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_notebook_edit_valid_post_updates(self):
+        self.client.force_login(self.alice)
+        self.client.post(
+            reverse('notes_app:notebook_edit', args=[self.alice_notebook.pk]),
+            {'title': 'Renamed', 'color': '#4A90E2', 'is_default': False},
+        )
+        self.alice_notebook.refresh_from_db()
+        self.assertEqual(self.alice_notebook.title, 'Renamed')
+
+    def test_notebook_delete_get_returns_200(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(
+            reverse('notes_app:notebook_delete', args=[self.alice_notebook.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_notebook_delete_post_removes(self):
+        pk = self.alice_notebook.pk
+        self.client.force_login(self.alice)
+        response = self.client.post(
+            reverse('notes_app:notebook_delete', args=[pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Notebook.objects.filter(pk=pk).exists())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 13. TODO LIST VIEWS — CRUD
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TodoListViewTest(BaseViewTest):
+    def setUp(self):
+        super().setUp()
+        self.todo = TodoList.objects.create(user=self.alice, title='Alice List')
+
+    def test_todo_list_returns_200(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(reverse('notes_app:todo_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Alice List')
+
+    def test_todo_create_valid_post(self):
+        self.client.force_login(self.alice)
+        response = self.client.post(reverse('notes_app:todo_create'), {
+            'title': 'New Todo', 'description': '',
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(TodoList.objects.filter(title='New Todo', user=self.alice).exists())
+
+    def test_todo_detail_returns_200(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(reverse('notes_app:todo_detail', args=[self.todo.pk]))
+        self.assertEqual(response.status_code, 200)
+
+    def test_todo_detail_non_owner_gets_404(self):
+        self.client.force_login(self.bob)
+        response = self.client.get(reverse('notes_app:todo_detail', args=[self.todo.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_todo_edit_get_returns_200(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(reverse('notes_app:todo_edit', args=[self.todo.pk]))
+        self.assertEqual(response.status_code, 200)
+
+    def test_todo_edit_valid_post_updates(self):
+        self.client.force_login(self.alice)
+        self.client.post(reverse('notes_app:todo_edit', args=[self.todo.pk]), {
+            'title': 'Renamed List', 'description': '',
+        })
+        self.todo.refresh_from_db()
+        self.assertEqual(self.todo.title, 'Renamed List')
+
+    def test_todo_edit_non_owner_gets_404(self):
+        """Bob (не власник, не в shared_with) → get_object_or_404 повертає 404."""
+        self.client.force_login(self.bob)
+        response = self.client.get(reverse('notes_app:todo_edit', args=[self.todo.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_todo_delete_get_returns_200(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(reverse('notes_app:todo_delete', args=[self.todo.pk]))
+        self.assertEqual(response.status_code, 200)
+
+    def test_todo_delete_post_removes(self):
+        pk = self.todo.pk
+        self.client.force_login(self.alice)
+        self.client.post(reverse('notes_app:todo_delete', args=[pk]))
+        self.assertFalse(TodoList.objects.filter(pk=pk).exists())
+
+    def test_todo_share_get_returns_200(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(reverse('notes_app:todo_share', args=[self.todo.pk]))
+        self.assertEqual(response.status_code, 200)
+
+    def test_todo_share_unshare_action(self):
+        """POST з action=remove скасовує доступ."""
+        self.todo.shared_with.add(self.bob)
+        self.client.force_login(self.alice)
+        self.client.post(reverse('notes_app:todo_share', args=[self.todo.pk]), {
+            'username': 'bob', 'action': 'remove',
+        })
+        self.assertNotIn(self.bob, self.todo.shared_with.all())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 14. TODO ITEM VIEWS
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TodoItemViewTest(BaseViewTest):
+    def setUp(self):
+        super().setUp()
+        self.todo = TodoList.objects.create(user=self.alice, title='My List')
+        self.item = TodoItem.objects.create(
+            todo_list=self.todo, text='Buy coffee', order_position=1
+        )
+
+    def test_add_todo_item_valid_post(self):
+        self.client.force_login(self.alice)
+        self.client.post(
+            reverse('notes_app:todo_item_add', args=[self.todo.pk]),
+            {'text': 'New task'},
+        )
+        self.assertEqual(self.todo.items.count(), 2)
+
+    def test_toggle_todo_item_marks_done(self):
+        self.client.force_login(self.alice)
+        self.client.post(reverse('notes_app:todo_item_toggle', args=[self.item.pk]))
+        self.item.refresh_from_db()
+        self.assertTrue(self.item.is_done)
+
+    def test_delete_todo_item_removes(self):
+        pk = self.item.pk
+        self.client.force_login(self.alice)
+        self.client.post(reverse('notes_app:todo_item_delete', args=[pk]))
+        self.assertFalse(TodoItem.objects.filter(pk=pk).exists())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 15. SHOPPING LIST VIEWS — CRUD
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ShoppingListViewTest(BaseViewTest):
+    def setUp(self):
+        super().setUp()
+        self.sl = ShoppingList.objects.create(user=self.alice, title='Grocery')
+
+    def test_shopping_list_returns_200(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(reverse('notes_app:shopping_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Grocery')
+
+    def test_shopping_create_get_returns_200(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(reverse('notes_app:shopping_create'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_shopping_create_valid_post(self):
+        self.client.force_login(self.alice)
+        response = self.client.post(reverse('notes_app:shopping_create'), {
+            'title': 'New List', 'store_name': '',
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(ShoppingList.objects.filter(title='New List', user=self.alice).exists())
+
+    def test_shopping_detail_returns_200(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(reverse('notes_app:shopping_detail', args=[self.sl.pk]))
+        self.assertEqual(response.status_code, 200)
+
+    def test_shopping_detail_non_owner_gets_404(self):
+        self.client.force_login(self.bob)
+        response = self.client.get(reverse('notes_app:shopping_detail', args=[self.sl.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_shopping_edit_valid_post_updates(self):
+        self.client.force_login(self.alice)
+        self.client.post(reverse('notes_app:shopping_edit', args=[self.sl.pk]), {
+            'title': 'Updated', 'store_name': 'Metro',
+        })
+        self.sl.refresh_from_db()
+        self.assertEqual(self.sl.title, 'Updated')
+
+    def test_shopping_delete_post_removes(self):
+        pk = self.sl.pk
+        self.client.force_login(self.alice)
+        self.client.post(reverse('notes_app:shopping_delete', args=[pk]))
+        self.assertFalse(ShoppingList.objects.filter(pk=pk).exists())
+
+    def test_shopping_share_get_returns_200(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(reverse('notes_app:shopping_share', args=[self.sl.pk]))
+        self.assertEqual(response.status_code, 200)
+
+    def test_shopping_share_valid_post(self):
+        self.client.force_login(self.alice)
+        self.client.post(reverse('notes_app:shopping_share', args=[self.sl.pk]), {
+            'username': 'bob',
+        })
+        self.assertIn(self.bob, self.sl.shared_with.all())
+
+    def test_shopping_share_unshare_action(self):
+        self.sl.shared_with.add(self.bob)
+        self.client.force_login(self.alice)
+        self.client.post(reverse('notes_app:shopping_share', args=[self.sl.pk]), {
+            'username': 'bob', 'action': 'remove',
+        })
+        self.assertNotIn(self.bob, self.sl.shared_with.all())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 16. SHOP ITEM VIEWS
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ShopItemViewTest(BaseViewTest):
+    def setUp(self):
+        super().setUp()
+        self.sl = ShoppingList.objects.create(user=self.alice, title='Items')
+        self.item = ShopItem.objects.create(
+            shopping_list=self.sl, name='Milk', quantity=1
+        )
+
+    def test_add_shop_item_valid_post(self):
+        self.client.force_login(self.alice)
+        self.client.post(
+            reverse('notes_app:shop_item_add', args=[self.sl.pk]),
+            {'name': 'Bread', 'quantity': 2, 'unit': 'шт'},
+        )
+        self.assertEqual(self.sl.items.count(), 2)
+
+    def test_toggle_shop_item_marks_purchased(self):
+        self.client.force_login(self.alice)
+        self.client.post(reverse('notes_app:shop_item_toggle', args=[self.item.pk]))
+        self.item.refresh_from_db()
+        self.assertTrue(self.item.is_purchased)
+
+    def test_delete_shop_item_removes(self):
+        pk = self.item.pk
+        self.client.force_login(self.alice)
+        self.client.post(reverse('notes_app:shop_item_delete', args=[pk]))
+        self.assertFalse(ShopItem.objects.filter(pk=pk).exists())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 17. GROUP CHAT VIEW
+# ─────────────────────────────────────────────────────────────────────────────
+
+class GroupChatViewTest(BaseViewTest):
+    def setUp(self):
+        super().setUp()
+        self.group = Group.objects.create(name='ChatGroup')
+        self.alice.groups.add(self.group)
+
+    def test_member_can_access_chat_page(self):
+        self.client.force_login(self.alice)
+        response = self.client.get(
+            reverse('notes_app:group_chat', args=[self.group.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'chat-input')
+
+    def test_non_member_redirected_from_chat(self):
+        self.client.force_login(self.bob)
+        response = self.client.get(
+            reverse('notes_app:group_chat', args=[self.group.pk])
+        )
+        self.assertEqual(response.status_code, 302)

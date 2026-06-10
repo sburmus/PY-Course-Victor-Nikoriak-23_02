@@ -68,7 +68,9 @@
     const WS_URL   = `${protocol}://${window.location.host}/ws/groups/${GROUP_PK}/chat/`;
 
     let socket = null;
-    let historyLoaded = false;
+    // Exponential backoff: починаємо з 1с, подвоюємо до 30с при кожному невдалому
+    // перепідключенні. Скидається до 1с після успішного з'єднання.
+    let reconnectDelay = 1000;
 
     // ── CONNECT ───────────────────────────────────────────────────────────────
 
@@ -87,9 +89,13 @@
         socket.onopen = function () {
             // З'єднання встановлено. Тепер можна надсилати/отримувати повідомлення.
             setStatus('connected');
+            reconnectDelay = 1000; // скидаємо backoff після успішного підключення
             inputEl.disabled = false;
             sendBtnEl.disabled = false;
             inputEl.focus();
+            // Ховаємо placeholder одразу при відкритті з'єднання.
+            // Якщо чат порожній, history-фреймів не буде — placeholder має зникнути.
+            placeholderEl.style.display = 'none';
         };
 
         socket.onmessage = function (event) {
@@ -106,11 +112,6 @@
             // type='history' — повідомлення з БД при connect() (load_history у consumer)
             // type='message' — нове повідомлення в real-time (chat_message у consumer)
             if (data.type === 'history' || data.type === 'message') {
-                if (!historyLoaded) {
-                    // Перше повідомлення після connect → прибираємо placeholder
-                    placeholderEl.style.display = 'none';
-                    historyLoaded = true;
-                }
                 appendMessage(data);
             }
         };
@@ -129,10 +130,18 @@
             inputEl.disabled = true;
             sendBtnEl.disabled = true;
 
-            // Автоперепідключення через 3 секунди при аварійному закритті.
+            // Exponential Backoff з Jitter при аварійному закритті.
             // Не перепідключаємось при 1000/1001 (навмисне закриття).
+            //
+            // ЧОМУ backoff + jitter?
+            // При перезапуску сервера всі клієнти отримують onclose одночасно.
+            // Flat setTimeout(connect, 3000) → синхронний шторм з'єднань через 3с.
+            // Backoff подвоює затримку між спробами (1s → 2s → 4s → ... → 30s).
+            // Jitter додає випадковий зсув (0–1с) щоб клієнти не синхронізувались.
             if (event.code !== 1000 && event.code !== 1001) {
-                setTimeout(connect, 3000);
+                const jitter = Math.random() * 1000;
+                setTimeout(connect, reconnectDelay + jitter);
+                reconnectDelay = Math.min(reconnectDelay * 2, 30000);
             }
         };
     }
@@ -206,7 +215,7 @@
     const STATUS_CONFIG = {
         connecting:   { color: '#ffc107', text: 'Підключення...' },
         connected:    { color: '#198754', text: 'Підключено' },
-        disconnected: { color: '#6c757d', text: 'Відключено. Перепідключення через 3 сек...' },
+        disconnected: { color: '#6c757d', text: 'Відключено. Перепідключення...' },
         error:        { color: '#dc3545', text: 'Помилка з\'єднання' },
     };
 

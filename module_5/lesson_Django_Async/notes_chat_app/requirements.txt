@@ -7,6 +7,12 @@ coverage>=7.0
 pytest>=7.0
 pytest-django>=4.5
 
+# ── Database ──────────────────────────────────────────────────────────────────
+# psycopg2-binary: PostgreSQL адаптер для Django.
+# Потрібен коли DATABASE_URL вказує на postgres (Docker).
+# Без нього django.db.backends.postgresql не може підключитись до БД.
+psycopg2-binary>=2.9
+
 # ── Async ────────────────────────────────────────────────────────────────────
 # uvicorn: ASGI-сервер для запуску Django в async-режимі.
 # Використовується замість runserver для демонстрації повного async stack.
@@ -32,9 +38,11 @@ httpx>=0.27.0
 # Для запуску WebSocket чату:
 #   uvicorn notes_project.asgi:application --reload --port 8001
 #
-# channels-redis НЕ потрібен для розробки — використовуємо InMemoryChannelLayer.
-# В production: pip install channels-redis (потребує Redis сервера).
+# channels-redis: RedisChannelLayer для production (кілька воркерів, горизонтальне масштабування).
+# Активується автоматично якщо встановлена змінна REDIS_URL (see settings.py).
+# InMemoryChannelLayer використовується коли REDIS_URL не встановлена (локально без Docker).
 channels>=4.0
+channels-redis>=4.0
 
 # daphne: ASGI сервер від Django Channels команди.
 # Потрібен для channels.testing (WebsocketCommunicator у тестах).

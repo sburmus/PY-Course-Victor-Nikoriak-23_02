@@ -7,6 +7,8 @@ Django settings — lesson_Django_authentication_and_security
   + Group-based sharing           → Django built-in Group model used in Note/ShoppingList
 """
 
+import os
+import re
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -18,6 +20,10 @@ DEBUG = True
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
+    # ── daphne ПЕРШИМ — перевизначає runserver щоб він запускався через ASGI.
+    # Без цього python manage.py runserver використовує WSGI і WebSocket не працює.
+    # pip install daphne>=4.0
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -107,18 +113,41 @@ MESSAGE_TAGS = {
     messages_constants.ERROR:   'danger',
 }
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-        # CONN_MAX_AGE = 0: вимикаємо persistent DB connections.
-        # В async-режимі одне з'єднання може бути використане одночасно
-        # кількома coroutines, що призводить до race conditions.
-        # 0 = Django закриває з'єднання після кожного запиту (безпечно для async).
-        # В production з PostgreSQL + async: краще використовувати pgBouncer.
-        "CONN_MAX_AGE": 0,
+_DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if _DATABASE_URL:
+    # Docker: PostgreSQL (задається через DATABASE_URL у docker-compose.yml)
+    _m = re.match(r"postgres://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)", _DATABASE_URL)
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": _m.group(5),
+            "USER": _m.group(1),
+            "PASSWORD": _m.group(2),
+            "HOST": _m.group(3),
+            "PORT": _m.group(4),
+            # CONN_MAX_AGE = 0: вимикаємо persistent DB connections.
+            # В async-режимі одне з'єднання може бути використане одночасно
+            # кількома coroutines, що призводить до race conditions.
+            "CONN_MAX_AGE": 0,
+        }
     }
-}
+else:
+    # Локально (без Docker): SQLite для швидкого старту
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+            "CONN_MAX_AGE": 0,
+            # TEST: файлова БД замість in-memory (:memory:).
+            # ChannelLiveServerTestCase запускає реальний Daphne в окремому потоці.
+            # In-memory SQLite недоступна між потоками → ImproperlyConfigured.
+            # Файлова тестова БД автоматично видаляється після тестів Django.
+            "TEST": {
+                "NAME": BASE_DIR / "test_db.sqlite3",
+            },
+        }
+    }
 
 # ── Channel Layers (Django Channels pub/sub) ──────────────────────────────────
 #
@@ -155,11 +184,29 @@ DATABASES = {
 #       "BACKEND": "channels_redis.core.RedisChannelLayer",
 #       "CONFIG": {"hosts": [("127.0.0.1", 6379)]},
 #   }}
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
+# ── Channel Layers (Django Channels pub/sub) ──────────────────────────────────
+#
+# Якщо є REDIS_URL (Docker / production) → RedisChannelLayer:
+#   pip install channels-redis
+#   Підтримує кілька uvicorn воркерів — повідомлення між процесами проходять через Redis.
+#
+# Якщо REDIS_URL не встановлено (локально без Docker) → InMemoryChannelLayer:
+#   Зберігає повідомлення в RAM поточного процесу.
+#   НЕ потребує Redis, але ТІЛЬКИ для одного процесу.
+_REDIS_URL = os.environ.get("REDIS_URL")
+if _REDIS_URL:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [_REDIS_URL]},
+        }
     }
-}
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

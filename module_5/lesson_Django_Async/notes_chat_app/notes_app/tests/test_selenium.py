@@ -52,10 +52,19 @@ try:
 except ImportError:
     SELENIUM_AVAILABLE = False
 
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group as DjangoGroup
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 
 from notes_app.models import Note
+
+# ChannelLiveServerTestCase — запускає реальний Daphne ASGI сервер.
+# Потрібен для тестування WebSocket через реальний браузер.
+# Daphne вже встановлений у requirements.txt.
+try:
+    from channels.testing import ChannelsLiveServerTestCase
+    CHANNELS_LIVE_SERVER_AVAILABLE = True
+except ImportError:
+    CHANNELS_LIVE_SERVER_AVAILABLE = False
 
 # Якщо встановлена ця змінна → запускаємо через Remote WebDriver (GitHub Actions / Docker)
 # Якщо не встановлена → локальний headless Chrome
@@ -107,16 +116,25 @@ class _DockerLiveServerMixin:
       2. Якщо WEB_HOST встановлено → замінюємо '0.0.0.0' на ім'я контейнера
          щоб Selenium міг звертатись через Docker внутрішню мережу.
 
-    Локально (WEB_HOST не встановлено): поведінка без змін.
-    У Docker (WEB_HOST=web): live_server_url = 'http://web:PORT'
+    Локально (WEB_HOST не встановлено): host = '127.0.0.1' (стандартний Django).
+      live_server_url = 'http://127.0.0.1:PORT' — Chrome може підключитись.
+      КРИТИЧНО: host = '0.0.0.0' локально дає live_server_url = 'http://0.0.0.0:PORT',
+      що Chrome відхиляє з ERR_ADDRESS_INVALID.
+    У Docker (WEB_HOST=web): host = '0.0.0.0' → bind + URL = 'http://web:PORT'
     """
-    host = '0.0.0.0'
+    # В Docker: '0.0.0.0' → bind на всі інтерфейси, потім URL = WEB_HOST.
+    # Локально: '127.0.0.1' → Chrome може підключитись напряму.
+    host = '0.0.0.0' if _WEB_HOST else '127.0.0.1'
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         if _WEB_HOST:
-            cls.live_server_url = cls.live_server_url.replace('0.0.0.0', _WEB_HOST)
+            # Both Django's LiveServerTestCase and ChannelsLiveServerTestCase compute
+            # live_server_url from cls.host. The server already bound to 0.0.0.0
+            # (all interfaces), so changing cls.host only affects the advertised URL —
+            # the actual listener stays accessible on every interface, including 'web'.
+            cls.host = _WEB_HOST
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -438,3 +456,132 @@ class SeleniumGroupChatPageTest(_DockerLiveServerMixin, StaticLiveServerTestCase
         self.driver.get(f'{self.live_server_url}/groups/{self.group.pk}/')
         page = self.driver.page_source
         self.assertIn(f'/groups/{self.group.pk}/chat/', page)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. WEBSOCKET CHAT — реальне WebSocket з'єднання через Daphne ASGI сервер
+# ─────────────────────────────────────────────────────────────────────────────
+
+@unittest.skipUnless(
+    SELENIUM_AVAILABLE and CHANNELS_LIVE_SERVER_AVAILABLE,
+    "selenium або channels.testing недоступні"
+)
+class SeleniumWebSocketChatTest(_DockerLiveServerMixin, ChannelsLiveServerTestCase):
+    """
+    E2E тест реального WebSocket чату через Daphne ASGI сервер.
+
+    ВІДМІННІСТЬ ВІД SeleniumGroupChatPageTest:
+      SeleniumGroupChatPageTest: StaticLiveServerTestCase = WSGI (sync) сервер
+        → JavaScript WebSocket НЕ підключається (немає ASGI обробника)
+        → input залишається disabled
+        → можна тільки перевіряти HTML розмітку
+
+      Цей клас: ChannelLiveServerTestCase = Daphne ASGI сервер
+        → JavaScript WebSocket підключається РЕАЛЬНО
+        → Consumer.connect() виконується
+        → input стає enabled (socket.onopen())
+        → можна відправляти повідомлення і перевіряти DOM
+
+    ЩО ТЕСТУЄМО:
+      - WebSocket з'єднання встановлюється (input змінюється з disabled → enabled)
+      - Відправлене повідомлення з'являється у #chat-messages
+      - Повний шлях: браузер → WS → Consumer → БД → group_send → DOM
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        if SELENIUM_AVAILABLE:
+            cls.driver = _make_headless_driver()
+            cls.driver.implicitly_wait(10)
+
+    @classmethod
+    def tearDownClass(cls):
+        if SELENIUM_AVAILABLE:
+            cls.driver.quit()
+        super().tearDownClass()
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='wsclient', password='testpass123')
+        self.group = DjangoGroup.objects.create(name='WSChatGroup')
+        self.group.user_set.add(self.user)
+        self._login_via_cookie(self.user)
+
+    def _login_via_cookie(self, user):
+        self.client.force_login(user)
+        session_cookie = self.client.cookies['sessionid']
+        self.driver.get(f'{self.live_server_url}/')
+        self.driver.add_cookie({
+            'name': 'sessionid',
+            'value': session_cookie.value,
+            'path': '/',
+        })
+
+    def test_websocket_connects_and_enables_input(self):
+        """
+        Після відкриття chat page WebSocket підключається і input стає активним.
+
+        group_chat.js логіка:
+          inputEl.disabled = true            ← до підключення
+          socket.onopen = () => {
+              inputEl.disabled = false       ← після підключення
+          }
+
+        З StaticLiveServerTestCase (WSGI): WebSocket НЕ підключається → input назавжди disabled.
+        З ChannelLiveServerTestCase (Daphne): WebSocket підключається → input стає enabled.
+
+        EC.element_to_be_clickable() чекає поки елемент стане і visible і enabled.
+        """
+        self.driver.get(f'{self.live_server_url}/groups/{self.group.pk}/chat/')
+
+        chat_input = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.ID, 'chat-input'))
+        )
+        self.assertFalse(chat_input.get_attribute('disabled'))
+
+    def test_send_message_appears_in_chat_feed(self):
+        """
+        Відправляємо повідомлення через UI → воно з'являється у #chat-messages.
+
+        Перевіряє повний WebSocket шлях:
+          браузер → form submit → socket.send() → Consumer.receive()
+          → save_message() → group_send() → chat_message() → self.send()
+          → socket.onmessage → appendMessage() → DOM оновлюється
+
+        WebDriverWait + lambda: чекаємо поки DOM містить текст повідомлення.
+        """
+        self.driver.get(f'{self.live_server_url}/groups/{self.group.pk}/chat/')
+
+        # Чекаємо поки WebSocket підключиться
+        chat_input = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.ID, 'chat-input'))
+        )
+
+        test_message = 'WebSocket E2E тест'
+        chat_input.send_keys(test_message)
+        self.driver.find_element(By.ID, 'chat-send-btn').click()
+
+        # Чекаємо поки повідомлення з'явиться у #chat-messages
+        WebDriverWait(self.driver, 10).until(
+            lambda d: test_message in d.find_element(By.ID, 'chat-messages').text
+        )
+
+        messages_feed = self.driver.find_element(By.ID, 'chat-messages')
+        self.assertIn(test_message, messages_feed.text)
+
+    def test_status_shows_connected_after_websocket_opens(self):
+        """
+        Після підключення статус-бар показує 'Підключено'.
+
+        group_chat.js → setStatus('connected') → statusTextEl.textContent = 'Підключено'
+        Перевіряємо що #status-text змінився з 'Підключення...' на 'Підключено'.
+        """
+        self.driver.get(f'{self.live_server_url}/groups/{self.group.pk}/chat/')
+
+        # Чекаємо поки статус стане 'Підключено'
+        WebDriverWait(self.driver, 10).until(
+            lambda d: 'Підключено' in d.find_element(By.ID, 'status-text').text
+        )
+
+        status_text = self.driver.find_element(By.ID, 'status-text').text
+        self.assertIn('Підключено', status_text)

@@ -1,4 +1,26 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: notes_db
+      POSTGRES_USER: notes_user
+      POSTGRES_PASSWORD: notes_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notes_user -d notes_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   web:
     build: .
     ports:
@@ -6,11 +28,21 @@ services:
     volumes:
       - .:/app
     environment:
+      DATABASE_URL: postgres://notes_user:notes_pass@db:5432/notes_db
+      REDIS_URL: redis://redis:6379/0
       SELENIUM_REMOTE_URL: http://selenium:4444/wd/hub
       WEB_HOST: web
     depends_on:
-      selenium:
+      db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/accounts/login/')\" || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
 
   selenium:
     image: selenium/standalone-chrome:latest
@@ -22,3 +54,9 @@ services:
       interval: 5s
       timeout: 10s
       retries: 5
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

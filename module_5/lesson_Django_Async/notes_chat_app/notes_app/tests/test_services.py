@@ -58,7 +58,7 @@ from django.contrib.auth.models import Group, User
 from django.test import TestCase
 
 from notes_app import services
-from notes_app.models import Note, Notebook, Tag, TodoList
+from notes_app.models import Note, Notebook, Tag, TodoList, TodoItem, ShoppingList, ShopItem, Reminder
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -782,3 +782,231 @@ class TodoListServiceTest(BaseServiceTest):
         """
         self.assertEqual(TodoList.objects.count(), 1)
         self.assertEqual(self.todo_list.user, self.alice)
+
+    def test_update_todo_list_changes_title(self):
+        services.update_todo_list(self.todo_list, title='Updated Title', description='desc')
+        self.todo_list.refresh_from_db()
+        self.assertEqual(self.todo_list.title, 'Updated Title')
+        self.assertEqual(self.todo_list.description, 'desc')
+
+    def test_delete_todo_list_removes_from_db(self):
+        pk = self.todo_list.pk
+        services.delete_todo_list(self.todo_list)
+        self.assertFalse(TodoList.objects.filter(pk=pk).exists())
+
+    def test_complete_todo_list_marks_all_items_done(self):
+        from notes_app.models import TodoItem as TI
+        TI.objects.create(todo_list=self.todo_list, text='Task 1', is_done=False)
+        TI.objects.create(todo_list=self.todo_list, text='Task 2', is_done=False)
+        services.complete_todo_list(self.todo_list)
+        self.todo_list.refresh_from_db()
+        self.assertTrue(self.todo_list.is_completed)
+        self.assertEqual(self.todo_list.items.filter(is_done=False).count(), 0)
+
+    def test_unshare_todo_list_removes_access(self):
+        self.todo_list.shared_with.add(self.bob)
+        services.unshare_todo_list(self.todo_list, 'bob')
+        self.assertNotIn(self.bob, self.todo_list.shared_with.all())
+
+    def test_unshare_todo_list_nonexistent_user_does_not_raise(self):
+        services.unshare_todo_list(self.todo_list, 'nobody')
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ТЕСТИ: services для TodoItem
+# ═════════════════════════════════════════════════════════════════════════════
+
+class TodoItemServiceTest(BaseServiceTest):
+    def setUp(self):
+        super().setUp()
+        self.todo = services.create_todo_list(user=self.alice, title='My List')
+
+    def test_add_todo_item_creates_item(self):
+        item = services.add_todo_item(self.todo, text='Buy milk')
+        self.assertEqual(item.text, 'Buy milk')
+        self.assertEqual(item.todo_list, self.todo)
+        self.assertFalse(item.is_done)
+
+    def test_add_todo_item_increments_order(self):
+        item1 = services.add_todo_item(self.todo, text='First')
+        item2 = services.add_todo_item(self.todo, text='Second')
+        self.assertGreater(item2.order_position, item1.order_position)
+
+    def test_toggle_todo_item_marks_done(self):
+        item = services.add_todo_item(self.todo, text='Task')
+        updated = services.toggle_todo_item(item)
+        self.assertTrue(updated.is_done)
+
+    def test_toggle_todo_item_unmarks_done(self):
+        item = services.add_todo_item(self.todo, text='Task')
+        services.toggle_todo_item(item)
+        updated = services.toggle_todo_item(item)
+        self.assertFalse(updated.is_done)
+
+    def test_delete_todo_item_removes_from_db(self):
+        item = services.add_todo_item(self.todo, text='To remove')
+        pk = item.pk
+        services.delete_todo_item(item)
+        self.assertFalse(TodoItem.objects.filter(pk=pk).exists())
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ТЕСТИ: services для NoteService (update_note, archive_note)
+# ═════════════════════════════════════════════════════════════════════════════
+
+class NoteUpdateServiceTest(BaseServiceTest):
+    def setUp(self):
+        super().setUp()
+        self.note = services.create_note(user=self.alice, title='Original')
+
+    def test_update_note_changes_title(self):
+        services.update_note(self.note, title='Changed')
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.title, 'Changed')
+
+    def test_update_note_replaces_tags(self):
+        tag1 = Tag.objects.create(user=self.alice, name='old')
+        tag2 = Tag.objects.create(user=self.alice, name='new')
+        self.note.tags.add(tag1)
+        services.update_note(self.note, tag_ids=[tag2.id])
+        tags = list(self.note.tags.all())
+        self.assertNotIn(tag1, tags)
+        self.assertIn(tag2, tags)
+
+    def test_archive_note_sets_is_archived_true(self):
+        services.archive_note(self.note)
+        self.note.refresh_from_db()
+        self.assertTrue(self.note.is_archived)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ТЕСТИ: services для NotebookService (update_notebook, delete_notebook)
+# ═════════════════════════════════════════════════════════════════════════════
+
+class NotebookUpdateServiceTest(BaseServiceTest):
+    def setUp(self):
+        super().setUp()
+        self.nb = services.create_notebook(user=self.alice, title='Old Title')
+
+    def test_update_notebook_changes_title(self):
+        services.update_notebook(self.nb, title='New Title', color='#FF0000', is_default=False)
+        self.nb.refresh_from_db()
+        self.assertEqual(self.nb.title, 'New Title')
+
+    def test_update_notebook_to_default_unsets_old_default(self):
+        old_default = services.create_notebook(user=self.alice, title='Default', is_default=True)
+        services.update_notebook(self.nb, title='Old Title', color='#4A90E2', is_default=True)
+        old_default.refresh_from_db()
+        self.assertFalse(old_default.is_default)
+        self.nb.refresh_from_db()
+        self.assertTrue(self.nb.is_default)
+
+    def test_delete_notebook_removes_from_db(self):
+        pk = self.nb.pk
+        services.delete_notebook(self.nb)
+        self.assertFalse(Notebook.objects.filter(pk=pk).exists())
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ТЕСТИ: services для ShoppingList
+# ═════════════════════════════════════════════════════════════════════════════
+
+class ShoppingListServiceTest(BaseServiceTest):
+    def setUp(self):
+        super().setUp()
+        self.sl = services.create_shopping_list(user=self.alice, title='Groceries')
+
+    def test_create_shopping_list_saved(self):
+        self.assertEqual(ShoppingList.objects.count(), 1)
+        self.assertEqual(self.sl.user, self.alice)
+
+    def test_update_shopping_list_changes_title(self):
+        services.update_shopping_list(self.sl, title='Updated', store_name='Metro')
+        self.sl.refresh_from_db()
+        self.assertEqual(self.sl.title, 'Updated')
+        self.assertEqual(self.sl.store_name, 'Metro')
+
+    def test_delete_shopping_list_removes_from_db(self):
+        pk = self.sl.pk
+        services.delete_shopping_list(self.sl)
+        self.assertFalse(ShoppingList.objects.filter(pk=pk).exists())
+
+    def test_share_shopping_list_with_bob(self):
+        success, _ = services.share_shopping_list(self.sl, 'bob')
+        self.assertTrue(success)
+        self.assertIn(self.bob, self.sl.shared_with.all())
+
+    def test_share_shopping_list_with_nonexistent_user(self):
+        success, message = services.share_shopping_list(self.sl, 'nobody')
+        self.assertFalse(success)
+        self.assertIn('nobody', message)
+
+    def test_share_shopping_list_with_self_returns_false(self):
+        success, _ = services.share_shopping_list(self.sl, 'alice')
+        self.assertFalse(success)
+        self.assertNotIn(self.alice, self.sl.shared_with.all())
+
+    def test_unshare_shopping_list_removes_access(self):
+        self.sl.shared_with.add(self.bob)
+        services.unshare_shopping_list(self.sl, 'bob')
+        self.assertNotIn(self.bob, self.sl.shared_with.all())
+
+    def test_unshare_shopping_list_nonexistent_user_does_not_raise(self):
+        services.unshare_shopping_list(self.sl, 'nobody')
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ТЕСТИ: services для ShopItem
+# ═════════════════════════════════════════════════════════════════════════════
+
+class ShopItemServiceTest(BaseServiceTest):
+    def setUp(self):
+        super().setUp()
+        self.sl = services.create_shopping_list(user=self.alice, title='Items')
+
+    def test_add_shop_item_creates_item(self):
+        item = services.add_shop_item(self.sl, name='Milk', quantity=2)
+        self.assertEqual(item.name, 'Milk')
+        self.assertFalse(item.is_purchased)
+
+    def test_toggle_shop_item_marks_purchased(self):
+        item = services.add_shop_item(self.sl, name='Bread')
+        updated = services.toggle_shop_item_purchased(item)
+        self.assertTrue(updated.is_purchased)
+
+    def test_toggle_shop_item_unmarks_purchased(self):
+        item = services.add_shop_item(self.sl, name='Bread')
+        services.toggle_shop_item_purchased(item)
+        updated = services.toggle_shop_item_purchased(item)
+        self.assertFalse(updated.is_purchased)
+
+    def test_delete_shop_item_removes_from_db(self):
+        item = services.add_shop_item(self.sl, name='Eggs')
+        pk = item.pk
+        services.delete_shop_item(item)
+        self.assertFalse(ShopItem.objects.filter(pk=pk).exists())
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ТЕСТИ: services для Reminder
+# ═════════════════════════════════════════════════════════════════════════════
+
+class ReminderServiceTest(BaseServiceTest):
+    def setUp(self):
+        super().setUp()
+        self.note = services.create_note(user=self.alice, title='Note')
+
+    def test_create_reminder_saves_to_db(self):
+        from django.utils import timezone
+        remind_at = timezone.now() + timezone.timedelta(hours=1)
+        reminder = services.create_reminder(note=self.note, remind_at=remind_at)
+        self.assertIsNotNone(reminder.pk)
+        self.assertEqual(reminder.note, self.note)
+
+    def test_delete_reminder_removes_from_db(self):
+        from django.utils import timezone
+        remind_at = timezone.now() + timezone.timedelta(hours=1)
+        reminder = services.create_reminder(note=self.note, remind_at=remind_at)
+        pk = reminder.pk
+        services.delete_reminder(reminder)
+        self.assertFalse(Reminder.objects.filter(pk=pk).exists())
