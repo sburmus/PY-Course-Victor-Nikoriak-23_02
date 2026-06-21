@@ -246,9 +246,7 @@ upstream → repo викладача
 Оновлення матеріалів:
 
 ```bash
-git checkout main
-git pull upstream main
-git push origin main
+git remote -v
 ```
 ___
 Детальна інструкція по - [Git](module_1/docs/git-cheatsheet.md)
@@ -302,7 +300,7 @@ python3 start_course.py
 ### 1. Створити гілку
 
 ```bash
-git checkout -b homework-01
+
 ```
 
 ---
